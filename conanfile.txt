@@ -1,0 +1,5 @@
+[requires]
+luajit/2.0.5@int010h/stable
+
+[generators]
+cmake
