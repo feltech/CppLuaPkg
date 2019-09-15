@@ -53,7 +53,7 @@ endfunction()
 # Install the libraries.
 file(STRINGS luadistfile.txt _libs)
 luadist_install(${_libs})
-# Add path to mirror LuaDist install root.
+# Path to LuaDist install root.
 set(LUA_LOCAL_ROOT lib/lua)
 set(LUA_LOCAL_ROOT_ABS "${CMAKE_CURRENT_BINARY_DIR}/bin/${LUA_LOCAL_ROOT}")
 
@@ -74,7 +74,6 @@ file(
 	GLOB_RECURSE _scripts LIST_DIRECTORIES false RELATIVE ${SCRIPTS_ROOT}
 	CONFIGURE_DEPENDS ${SCRIPTS_ROOT}/*.moon
 )
-#message(STATUS "Moonscripts: ${_scripts}")
 # Ensure we can transpile the moonscript.
 if (_scripts)
 	message(STATUS "Configuring Moonscript transpilation")
@@ -87,16 +86,18 @@ if (_scripts)
 		get_filename_component(_dir ${_script} DIRECTORY)
 		get_filename_component(_basename ${_script} NAME_WE)
 		set(_script_path "${SCRIPTS_ROOT}/${_script}")
+		# Mirror the source directory structure in the transpiled destination.
 		set(_transpiled_path "${LUA_LOCAL_ROOT_ABS}/${_dir}/${_basename}.lua")
 		file(MAKE_DIRECTORY ${LUA_LOCAL_ROOT_ABS}/${_dir})
 		list(APPEND _transpiled_paths ${_transpiled_path})
 		add_custom_command(
 			OUTPUT ${_transpiled_path} DEPENDS ${_script_path}
 			COMMAND ${MOON} -o ${_transpiled_path} ${_script_path}
-			COMMENT "Transpiling ${_script} to ${LUA_LOCAL_ROOT_ABS}/${_dir}/${_basename}.lua"
+			COMMENT "Transpiling ${_script} to ${_transpiled_path}"
 			WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 		)
 	endforeach ()
+	# Gather individual moonscript transpilation commands under a target.
 	add_custom_target(moonscripts DEPENDS ${_transpiled_paths})
 	# Ensure moonscripts are compiled, if required, before building/running the application.
 	add_dependencies(CppLua moonscripts)
