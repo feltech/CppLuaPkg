@@ -42,8 +42,6 @@ function(luadist_install _libs)
 			list(APPEND LuaDist_cache -DINSTALL_SHARE:PATH=${CMAKE_BINARY_DIR}/contrib/artifacts/${_lib})
 			# Ensure FindLua.cmake can find conan's installed LuaJIT.
 			list(APPEND _prefix_paths ${CONAN_LUAJIT_ROOT})
-			# Ensure Lua libs can find SQLite
-			list(APPEND _prefix_paths ${CONAN_SQLITE3_ROOT})
 			list(APPEND LuaDist_cache -DCMAKE_PREFIX_PATH:PATH=${_prefix_paths})
 			ExternalProject_Add(
 				${_lib}
