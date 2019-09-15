@@ -37,7 +37,7 @@ function(luadist_install _libs)
 			# Ensure installed packages are installed as Release/Debug matching parent project.
 			list(APPEND LuaDist_args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
 			# Install packages as descendents of the program binary.
-			list(APPEND LuaDist_args -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/bin)
+			list(APPEND LuaDist_args -DCMAKE_INSTALL_PREFIX=${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 			# Move extraneous files out of the main bin directory.
 			list(APPEND LuaDist_cache -DINSTALL_SHARE:PATH=${CMAKE_BINARY_DIR}/contrib/artifacts/${_lib})
 			# Ensure FindLua.cmake can find conan's installed LuaJIT.
@@ -59,7 +59,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS luadistfile.txt)
 luadist_install("${_libs}")
 # Path to LuaDist install root.
 set(LUA_LOCAL_ROOT lib/lua)
-set(LUA_LOCAL_ROOT_ABS "${CMAKE_CURRENT_BINARY_DIR}/bin/${LUA_LOCAL_ROOT}")
+set(LUA_LOCAL_ROOT_ABS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${LUA_LOCAL_ROOT}")
 
 ###################################
 # Create main C++ application target.
