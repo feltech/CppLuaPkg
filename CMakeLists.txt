@@ -28,31 +28,37 @@ include(${CMAKE_CURRENT_BINARY_DIR}/conanbuildinfo.cmake)
 
 ###################################
 # Install Lua libararies from LuaDist.
-
+message(STATUS "Configuring LuaDist packages")
 # Install Lua package from LuaDist's repos into build dir.
 function(luadist_install _libs)
 	foreach(_lib ${_libs})
-		message(STATUS "Installing LuaDist ${_lib}")
-		# Ensure installed packages are installed as Release/Debug matching parent project.
-		list(APPEND LuaDist_args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
-		# Install packages as descendents of the program binary.
-		list(APPEND LuaDist_args -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/bin)
-		# Move extraneous files out of the main bin directory.
-		list(APPEND LuaDist_cache -DINSTALL_SHARE:PATH=${CMAKE_BINARY_DIR}/contrib/artifacts/${_lib})
-		# Ensure FindLua.cmake can find conan's installed LuaJIT.
-		list(APPEND LuaDist_cache -DCMAKE_PREFIX_PATH:PATH=${CONAN_LUAJIT_ROOT})
-		ExternalProject_Add(
-			${_lib}
-			PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
-			GIT_REPOSITORY https://github.com/LuaDist/${_lib}.git
-			CMAKE_ARGS ${LuaDist_args}
-			CMAKE_CACHE_ARGS ${LuaDist_cache}
-		)
+		if (NOT "${_lib}" STREQUAL "")
+			message(STATUS "Installing LuaDist ${_lib}")
+			# Ensure installed packages are installed as Release/Debug matching parent project.
+			list(APPEND LuaDist_args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
+			# Install packages as descendents of the program binary.
+			list(APPEND LuaDist_args -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/bin)
+			# Move extraneous files out of the main bin directory.
+			list(APPEND LuaDist_cache -DINSTALL_SHARE:PATH=${CMAKE_BINARY_DIR}/contrib/artifacts/${_lib})
+			# Ensure FindLua.cmake can find conan's installed LuaJIT.
+			list(APPEND _prefix_paths ${CONAN_LUAJIT_ROOT})
+			# Ensure Lua libs can find SQLite
+			list(APPEND _prefix_paths ${CONAN_SQLITE3_ROOT})
+			list(APPEND LuaDist_cache -DCMAKE_PREFIX_PATH:PATH=${_prefix_paths})
+			ExternalProject_Add(
+				${_lib}
+				PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
+				GIT_REPOSITORY https://github.com/LuaDist/${_lib}.git
+				CMAKE_ARGS ${LuaDist_args}
+				CMAKE_CACHE_ARGS ${LuaDist_cache}
+			)
+		endif()
 	endforeach()
 endfunction()
 # Install the libraries.
 file(STRINGS luadistfile.txt _libs)
-luadist_install(${_libs})
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS luadistfile.txt)
+luadist_install("${_libs}")
 # Path to LuaDist install root.
 set(LUA_LOCAL_ROOT lib/lua)
 set(LUA_LOCAL_ROOT_ABS "${CMAKE_CURRENT_BINARY_DIR}/bin/${LUA_LOCAL_ROOT}")
