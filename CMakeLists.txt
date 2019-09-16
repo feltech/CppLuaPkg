@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
+include(${CMAKE_ROOT}/Modules/FetchContent.cmake)
 
 project(CppLua)
 set(CMAKE_CXX_STANDARD 17)
@@ -32,7 +33,7 @@ message(STATUS "Configuring LuaDist packages")
 # Install Lua package from LuaDist's repos into build dir.
 function(luadist_install _libs)
 	foreach(_lib ${_libs})
-		if (NOT "${_lib}" STREQUAL "")
+		if (NOT "${_lib}" STREQUAL "" AND NOT "${_lib}" STREQUAL "lua")
 			message(STATUS "Installing LuaDist ${_lib}")
 			# Ensure installed packages are installed as Release/Debug matching parent project.
 			list(APPEND LuaDist_args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
@@ -43,10 +44,34 @@ function(luadist_install _libs)
 			# Ensure FindLua.cmake can find conan's installed LuaJIT.
 			list(APPEND _prefix_paths ${CONAN_LUAJIT_ROOT})
 			list(APPEND LuaDist_cache -DCMAKE_PREFIX_PATH:PATH=${_prefix_paths})
-			ExternalProject_Add(
-				${_lib}
+            set(_target_name LuaDist_${_lib})
+			FetchContent_Declare(
+				${_target_name}
 				PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
 				GIT_REPOSITORY https://github.com/LuaDist/${_lib}.git
+			)
+			FetchContent_Populate(${_target_name})
+			#			ExternalProject_Add(
+#				LuaDist_${_lib}
+#				PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
+#				GIT_REPOSITORY https://github.com/LuaDist/${_lib}.git
+#				CMAKE_ARGS ${LuaDist_args}
+#				CMAKE_CACHE_ARGS ${LuaDist_cache}
+#			)
+			execute_process(
+				COMMAND ${LUA} ${CMAKE_CURRENT_SOURCE_DIR}/dist_to_cmake.lua
+				WORKING_DIRECTORY ${luadist_${_lib}_SOURCE_DIR}
+				RESULTS_VARIABLE _status OUTPUT_VARIABLE _deps)
+			if (NOT "${_status}" STREQUAL "0")
+				message(FATAL_ERROR "Parsing dist.info error: ${_status}")
+			endif()
+            message(STATUS "${_lib} found dependencies: ${_deps}")
+
+			string(TOLOWER ${_target_name} _target_name_lower)
+			ExternalProject_Add(
+				${_target_name}
+				PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
+				SOURCE_DIR ${${_target_name_lower}_SOURCE_DIR}
 				CMAKE_ARGS ${LuaDist_args}
 				CMAKE_CACHE_ARGS ${LuaDist_cache}
 			)
@@ -54,8 +79,16 @@ function(luadist_install _libs)
 	endforeach()
 endfunction()
 # Install the libraries.
-file(STRINGS luadistfile.txt _libs)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS luadistfile.txt)
+file(STRINGS dist.info _libs)
+find_program(LUA lua REQUIRED)
+execute_process(
+	COMMAND ${LUA} ${CMAKE_CURRENT_LIST_DIR}/dist_to_cmake.lua
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+	RESULTS_VARIABLE _status OUTPUT_VARIABLE _libs)
+if (NOT "${_status}" STREQUAL "0")
+	message(FATAL_ERROR "Parsing dist.info error: ${_status}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS dist.info)
 luadist_install("${_libs}")
 # Path to LuaDist install root.
 set(LUA_LOCAL_ROOT lib/lua)
@@ -83,7 +116,7 @@ if (_scripts)
 	message(STATUS "Configuring Moonscript transpilation")
 	find_program(MOON moonc REQUIRED)
 	if ("${MOON}" STREQUAL "MOON-NOTFOUND")
-		message(FATAL "moonscript not found and is required to transpile")
+		message(FATAL_ERROR "moonscript not found and is required to transpile")
 	endif()
 	# Add transpilation step to moonscripts.
 	foreach (_script ${_scripts})
