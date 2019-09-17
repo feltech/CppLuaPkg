@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
+include(${CMAKE_ROOT}/Modules/FetchContent.cmake)
 
 project(CppLua)
 set(CMAKE_CXX_STANDARD 17)
@@ -29,26 +30,31 @@ include(${CMAKE_CURRENT_BINARY_DIR}/conanbuildinfo.cmake)
 ###################################
 # Install Lua libararies from LuaDist.
 message(STATUS "Configuring LuaDist packages")
+
+
+FetchContent_Declare(luadist GIT_REPOSITORY https://github.com/LuaDist/bootstrap)
+FetchContent_GetProperties(luadist)
+if(NOT luadist_POPULATED)
+	FetchContent_Populate(luadist)
+endif()
+set(LUADIST "${luadist_SOURCE_DIR}/_install/bin/luadist")
+set(LUADIST_CACHE ${CMAKE_CURRENT_BINARY_DIR}/_luadist)
+set(_dummyluadist ${LUADIST_CACHE}/share/luadist-git/dists/lua-dummy/dist.info)
+if(NOT EXISTS ${LUADIST})
+	message(STATUS "Configuring LuaDist local repo")
+	execute_process(
+		COMMAND ${luadist_SOURCE_DIR}/bootstrap
+		WORKING_DIRECTORY ${luadist_SOURCE_DIR}
+	)
+endif()
+file(WRITE ${_dummyluadist} "name = \"lua\"\nversion = \"5.1\"\ndepends = {}")
 # Install Lua package from LuaDist's repos into build dir.
 function(luadist_install _libs)
 	foreach(_lib ${_libs})
 		if (NOT "${_lib}" STREQUAL "")
-			message(STATUS "Installing LuaDist ${_lib}")
-			# Ensure installed packages are installed as Release/Debug matching parent project.
-			list(APPEND LuaDist_args -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
-			# Install packages as descendents of the program binary.
-			list(APPEND LuaDist_args -DCMAKE_INSTALL_PREFIX=${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-			# Move extraneous files out of the main bin directory.
-			list(APPEND LuaDist_cache -DINSTALL_SHARE:PATH=${CMAKE_BINARY_DIR}/contrib/artifacts/${_lib})
-			# Ensure FindLua.cmake can find conan's installed LuaJIT.
-			list(APPEND _prefix_paths ${CONAN_LUAJIT_ROOT})
-			list(APPEND LuaDist_cache -DCMAKE_PREFIX_PATH:PATH=${_prefix_paths})
-			ExternalProject_Add(
-				${_lib}
-				PREFIX ${CMAKE_CURRENT_BINARY_DIR}/contrib/build
-				GIT_REPOSITORY https://github.com/LuaDist/${_lib}.git
-				CMAKE_ARGS ${LuaDist_args}
-				CMAKE_CACHE_ARGS ${LuaDist_cache}
+			message(STATUS "Installing LuaDist library ${_lib}")
+			execute_process(
+				COMMAND ${LUADIST} _luadist install ${_lib} -binary=false -source=true -DINSTALL_LMOD=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lib/lua -DINSTALL_CMOD=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lib/lua -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} "-DCMAKE_PREFIX_PATH=${CONAN_LUAJIT_ROOT};${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" -DINSTALL_LIB=${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -verbose
 			)
 		endif()
 	endforeach()

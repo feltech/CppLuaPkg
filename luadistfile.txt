@@ -1,1 +1,4 @@
 md5
+luasocket
+lsqlite3
+
