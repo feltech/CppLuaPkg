@@ -4,6 +4,7 @@ include(${CMAKE_ROOT}/Modules/FetchContent.cmake)
 
 project(CppLua)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 ###################################
 # Install C++ libraries from conan.
@@ -30,50 +31,45 @@ include(${CMAKE_CURRENT_BINARY_DIR}/conanbuildinfo.cmake)
 ###################################
 # Install Lua libararies from LuaDist.
 message(STATUS "Configuring LuaDist packages")
-
-
-FetchContent_Declare(luadist GIT_REPOSITORY https://github.com/LuaDist/bootstrap)
-FetchContent_GetProperties(luadist)
-if(NOT luadist_POPULATED)
-	FetchContent_Populate(luadist)
-endif()
-set(LUADIST "${luadist_SOURCE_DIR}/_install/bin/luadist")
-set(LUADIST_CACHE ${CMAKE_CURRENT_BINARY_DIR}/_luadist)
-set(_dummyluadist ${LUADIST_CACHE}/share/luadist-git/dists/lua-dummy/dist.info)
-if(NOT EXISTS ${LUADIST})
-	message(STATUS "Configuring LuaDist local repo")
-	execute_process(
-		COMMAND ${luadist_SOURCE_DIR}/bootstrap
-		WORKING_DIRECTORY ${luadist_SOURCE_DIR}
-	)
-endif()
-file(WRITE ${_dummyluadist} "name = \"lua\"\nversion = \"5.1\"\ndepends = {}")
-# Install Lua package from LuaDist's repos into build dir.
-function(luadist_install _libs)
-	foreach(_lib ${_libs})
-		if (NOT "${_lib}" STREQUAL "")
-			message(STATUS "Installing LuaDist library ${_lib}")
-			execute_process(
-				COMMAND ${LUADIST} _luadist install ${_lib} -binary=false -source=true -DINSTALL_LMOD=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lib/lua -DINSTALL_CMOD=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/lib/lua -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} "-DCMAKE_PREFIX_PATH=${CONAN_LUAJIT_ROOT};${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" -DINSTALL_LIB=${CMAKE_RUNTIME_OUTPUT_DIRECTORY} -verbose
-			)
-		endif()
-	endforeach()
-endfunction()
-# Install the libraries.
-file(STRINGS luadistfile.txt _libs)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS luadistfile.txt)
-luadist_install("${_libs}")
+# Find luadist binary.
+find_package(LuaDist REQUIRED)
+# Specify libraries to install via a "luadistfile.txt" (to mirror "conanfile.txt").
+set(LUADIST_FILE "luadistfile.txt" CACHE PATH "File containing newline-separated list of LuaDist packages to install")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LUADIST_FILE})
+file(READ ${LUADIST_FILE} _libs)
+string(STRIP ${_libs} _libs)
+# Transform newline delimited to semicolon delimited, i.e. a CMake list.
+string(REGEX REPLACE "\n" ";" _libs "${_libs}")
+# Set path where to put LuaDist cache (includes src files for debug builds)
+set(_luadist_cache_root ${CMAKE_CURRENT_SOURCE_DIR}/.luadist/${CMAKE_BUILD_TYPE})
+# Set path for C++ libaries
+set(RUNTIME_LIBRARY_DIR "lib" CACHE PATH "Location to install libraries relative to the build tree")
+# Set path for Lua libaries (lua and shared libs).
+set(LUA_LOCAL_ROOT "${RUNTIME_LIBRARY_DIR}/lua" CACHE PATH
+	"Location to install Lua libraries relative to the build tree")
+set(_lua_local_root_abs "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${LUA_LOCAL_ROOT}")
+message(STATUS "LuaDist installing ${_libs}")
+# Do the install.
+execute_process(
+	COMMAND ${LUADIST_BIN} ${_luadist_cache_root} install luajit ${_libs}
+	-verbose -binary=false -source=true -debug
+	-DINSTALL_LMOD=${_lua_local_root_abs}
+	-DINSTALL_CMOD=${_lua_local_root_abs}
+	-DINSTALL_LIB=${RUNTIME_LIBRARY_DIR} #${_lua_local_root_abs}
+	-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+	-DCMAKE_PREFIX_PATH=${_lua_local_root_abs}
+)
 # Path to LuaDist install root.
 set(LUA_LOCAL_ROOT lib/lua)
-set(LUA_LOCAL_ROOT_ABS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${LUA_LOCAL_ROOT}")
 
 ###################################
 # Create main C++ application target.
 add_executable(CppLua src/main.cpp)
+find_library(LIBLUA lua PATHS ${RUNTIME_LIBRARY_DIR})
 # Add ad-hoc 3rd party C++ dependencies (i.e. sol2).
-include_directories(vendor)
+include_directories(vendor _luadist/include ${_luadist_cache_root}/include)
 # Link conan-installed libraries to main target.
-target_link_libraries(CppLua ${CONAN_LIBS})
+target_link_libraries(CppLua ${CONAN_LIBS} ${LIBLUA})
 # Add a compile definition to the location of lua libraries in the binary directory.
 add_compile_definitions(LUA_LOCAL_ROOT=\"lib/lua\")
 
@@ -97,8 +93,8 @@ if (_scripts)
 		get_filename_component(_basename ${_script} NAME_WE)
 		set(_script_path "${SCRIPTS_ROOT}/${_script}")
 		# Mirror the source directory structure in the transpiled destination.
-		set(_transpiled_path "${LUA_LOCAL_ROOT_ABS}/${_dir}/${_basename}.lua")
-		file(MAKE_DIRECTORY ${LUA_LOCAL_ROOT_ABS}/${_dir})
+		set(_transpiled_path "${_lua_local_root_abs}/${_dir}/${_basename}.lua")
+		file(MAKE_DIRECTORY ${_lua_local_root_abs}/${_dir})
 		list(APPEND _transpiled_paths ${_transpiled_path})
 		add_custom_command(
 			OUTPUT ${_transpiled_path} DEPENDS ${_script_path}
@@ -121,6 +117,6 @@ file(
 )
 #message(STATUS "Found Lua scripts: ${_scripts}")
 foreach (_script ${_scripts})
-	configure_file(${SCRIPTS_ROOT}/${_script} ${LUA_LOCAL_ROOT_ABS}/${_script} COPYONLY)
+	configure_file(${SCRIPTS_ROOT}/${_script} ${_lua_local_root_abs}/${_script} COPYONLY)
 endforeach()
 
