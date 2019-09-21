@@ -1,4 +1,6 @@
+print("Loading md5 lib")
 md5 = require "md5"
+print("Loaded md5 lib")
 
 class PrintHash
     new: =>

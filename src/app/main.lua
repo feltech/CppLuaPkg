@@ -1,5 +1,20 @@
 print("LUA MODULES:\n",package.path,"\n\nC MODULES:\n",package.cpath,"\n\n")
 
 require "hash.printhash"
+http = require "socket.http"
 
-print("Finished!")
+body, status, headers, statusline = http.request("https://www.google.com")
+print(statusline)
+
+require("lsqlite3")
+
+local db = sqlite3.open_memory()
+
+db:exec[[
+  CREATE TABLE test (id INTEGER PRIMARY KEY, content);
+  INSERT INTO test VALUES (NULL, 'Hello World');
+]]
+
+for row in db:nrows("SELECT * FROM test") do
+    print(row.id, row.content)
+end
