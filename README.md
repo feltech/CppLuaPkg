@@ -22,4 +22,4 @@ LuaDist integration via their `luadist` binary.
     - Print an Eigen vector (C++).
 
 ### Limitations / Future work
-* Once installed, LuaDist packages cannot be altered or removed by editing `luadistfile.txt` or CMake variables, instead you must either manually remove the generated `.luadist` or use the `luadist` command line.
+* Once installed, LuaDist packages cannot be altered or removed by editing `luadistfile.txt` or CMake variables, instead you must either manually remove the generated `.luadist` directory or use the `luadist` command line.
