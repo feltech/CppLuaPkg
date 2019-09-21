@@ -1,13 +1,13 @@
 # CppLuaPkg
 
 [CMake](https://cmake.org/) driven [Conan](https://conan.io/) / [LuaDist](http://luadist.org/) packages with minimal 
-C++ / [Lua](https://www.lua.org/) / [Moonscript](http://moonscript.org/) demo project, with Lua state handled by 
+C++ / [Lua](https://www.lua.org/) (/ [Moonscript](http://moonscript.org/)) demo project, with Lua state handled by 
 [sol2](https://github.com/ThePhD/sol2).
 
 * Single CMakeLists.txt with conan integration via [official plugin](https://github.com/conan-io/cmake-conan) and 
 LuaDist integration via their `luadist` binary.
-* Assumes conan, LuaDist and Moonscript are already available on the system.
-* Transpiles Moonscript as part of the build process.
+* Assumes conan, LuaDist (and Moonscript) are already available on the system.
+* Transpiles Moonscript as part of the build process, if any `.moon` files are found.
 * Lua/Moonscript directory structure is reflected in runtime output dir, so import paths are predictable.
 * Demo installs 
     - [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) math library listed in `conanfile.txt` via conan.
