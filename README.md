@@ -6,7 +6,7 @@ C++ / [Lua](https://www.lua.org/) / [Moonscript](http://moonscript.org/) demo pr
 
 * Single CMakeLists.txt with conan integration via [official plugin](https://github.com/conan-io/cmake-conan) and 
 LuaDist integration via their `luadist` binary.
-* Assumes conan and LuaDist are already available on the system.
+* Assumes conan, LuaDist and Moonscript are already available on the system.
 * Transpiles Moonscript as part of the build process.
 * Lua/Moonscript directory structure is reflected in runtime output dir, so import paths are predictable.
 * Demo installs 
