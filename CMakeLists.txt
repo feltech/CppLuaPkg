@@ -47,33 +47,48 @@ set(_luadist_cache_root ${CMAKE_CURRENT_SOURCE_DIR}/.luadist/${CMAKE_BUILD_TYPE}
 # Set path for C++ libaries
 set(RUNTIME_LIBRARY_DIR "lib" CACHE PATH "Location to install libraries relative to the build tree")
 # Set path for Lua libaries (lua and shared libs).
-set(LUA_LOCAL_ROOT "${RUNTIME_LIBRARY_DIR}/lua" CACHE PATH
+set(RUNTIME_LUA_LIBRARY_DIR "${RUNTIME_LIBRARY_DIR}/lua" CACHE PATH
 	"Location to install Lua libraries relative to the build tree")
-set(_lua_local_root_abs "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${LUA_LOCAL_ROOT}")
+set(_runtime_library_dir_abs "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${RUNTIME_LIBRARY_DIR}")
+set(_runtime_lua_library_dir_abs "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${RUNTIME_LUA_LIBRARY_DIR}")
 message(STATUS "LuaDist installing ${_libs}")
+# TODO: uninstall extraneous packages + reinstall if variables change.
 # Do the install.
 execute_process(
 	COMMAND ${LUADIST_BIN} ${_luadist_cache_root} install luajit ${_libs}
 	-verbose -binary=false -source=true
-	-debug  # Keep src when done - useful for debug builds, so we can breakpoint in the library source.
-	-DINSTALL_LMOD=${_lua_local_root_abs}
-	-DINSTALL_CMOD=${_lua_local_root_abs}
-	-DINSTALL_LIB=${RUNTIME_LIBRARY_DIR} #${_lua_local_root_abs}
+	# Keep src when done - useful for debug builds, so we can breakpoint in the library source.
+	-debug
+	# Directory to install Lua libraries (pure Lua and compiled).
+	-DINSTALL_LMOD=${_runtime_lua_library_dir_abs}
+	-DINSTALL_CMOD=${_runtime_lua_library_dir_abs}
+	# Directory to install C++ libraries.
+	-DINSTALL_LIB=${_runtime_library_dir_abs}
+	# Ensure C++ libraries can be found by Lua compiled modules at link time (e.g. lsqlite3.so -> libsqlite.so).
+	-DCMAKE_PREFIX_PATH=${_runtime_library_dir_abs}
+	# For C++ modules that depend on other C++ modules (e.g. lsqlite.so -> libsqlite.so).
+	-DCMAKE_INSTALL_RPATH=${RUNTIME_LIBRARY_DIR}
+	# Mirror build type of this project (i.e. Debug / Release).
 	-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-	-DCMAKE_PREFIX_PATH=${_lua_local_root_abs}
+	# Store any error code.
+	RESULT_VARIABLE _luadist_failed
 )
+
+# TODO: annoyingly, LuaDist exits with 1 if there is nothing to install.
+if (_luadist_failed AND NOT _luadist_failed EQUAL 1)
+	message(FATAL_ERROR "LuaDist failed with: ${_luadist_failed}")
+endif()
 
 ###################################
 # Create main C++ application target.
 add_executable(CppLua src/main.cpp)
-find_library(LIBLUA lua PATHS ${RUNTIME_LIBRARY_DIR})
+find_library(LIBLUA lua PATHS ${_runtime_library_dir_abs})
 # Add ad-hoc 3rd party C++ dependencies.
-include_directories(vendor _luadist/include ${_luadist_cache_root}/include)
+include_directories(vendor ${_luadist_cache_root}/include)
 # Link installed libraries to main target.
 target_link_libraries(CppLua ${CONAN_LIBS} ${LIBLUA})
 # Add a compile definition to the location of lua libraries in the binary directory.
-add_compile_definitions(LUA_LOCAL_ROOT=\"${LUA_LOCAL_ROOT}\")
-
+add_compile_definitions(LUA_LIBRARY_DIR=\"${RUNTIME_LUA_LIBRARY_DIR}\")
 ###################################
 # Check for moonscript files.
 set(SCRIPTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src" CACHE PATH
@@ -87,7 +102,7 @@ if (_scripts)
 	message(STATUS "Configuring Moonscript transpilation")
 	find_program(MOON moonc REQUIRED)
 	if ("${MOON}" STREQUAL "MOON-NOTFOUND")
-		message(FATAL "moonscript binary (moonc) not found and is required to transpile")
+		message(FATAL_ERROR "moonscript binary (moonc) not found and is required to transpile")
 	endif()
 	# Add transpilation step to moonscripts.
 	foreach (_script ${_scripts})
@@ -95,8 +110,8 @@ if (_scripts)
 		get_filename_component(_basename ${_script} NAME_WE)
 		set(_script_path "${SCRIPTS_ROOT}/${_script}")
 		# Mirror the source directory structure in the transpiled destination.
-		set(_transpiled_path "${_lua_local_root_abs}/${_dir}/${_basename}.lua")
-		file(MAKE_DIRECTORY ${_lua_local_root_abs}/${_dir})
+		set(_transpiled_path "${_runtime_lua_library_dir_abs}/${_dir}/${_basename}.lua")
+		file(MAKE_DIRECTORY ${_runtime_lua_library_dir_abs}/${_dir})
 		list(APPEND _transpiled_paths ${_transpiled_path})
 		add_custom_command(
 			OUTPUT ${_transpiled_path} DEPENDS ${_script_path}
@@ -119,6 +134,6 @@ file(
 )
 #message(STATUS "Found Lua scripts: ${_scripts}")
 foreach (_script ${_scripts})
-	configure_file(${SCRIPTS_ROOT}/${_script} ${_lua_local_root_abs}/${_script} COPYONLY)
+	configure_file(${SCRIPTS_ROOT}/${_script} ${_runtime_lua_library_dir_abs}/${_script} COPYONLY)
 endforeach()
 

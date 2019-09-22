@@ -7,7 +7,7 @@ body, status, headers, statusline = http.request("https://www.google.com")
 print(statusline)
 
 require("lsqlite3")
-
+print("Loaded SQLite")
 local db = sqlite3.open_memory()
 
 db:exec[[
